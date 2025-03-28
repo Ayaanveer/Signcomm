@@ -3,47 +3,56 @@ import mediapipe as mp
 import time
 
 class handDetector():
-    def __init__(self,mode = False,maxHands = 2, detectionCon = 0.5,trackCon = 0.5):
+    def __init__(self, mode=False, maxHands=2, detectionCon=0.5, trackCon=0.5):
         self.mode = mode
         self.maxHands = maxHands
         self.detectionCon = detectionCon
         self.trackCon = trackCon
 
         self.mpHands = mp.solutions.hands
-        self.hands = self.mpHands.Hands(static_image_mode= self.mode,
+        self.hands = self.mpHands.Hands(static_image_mode=self.mode,
                                         max_num_hands=self.maxHands,
                                         min_detection_confidence=self.detectionCon,
-                                        min_tracking_confidence= self.trackCon)
+                                        min_tracking_confidence=self.trackCon)
         self.mpDraw = mp.solutions.drawing_utils
 
-    def findHands(self,img,draw = True):
-        imgRGB = cv.cvtColor(img,cv.COLOR_BGR2RGB)
+    def findHands(self, img, draw=True):
+        imgRGB = cv.cvtColor(img, cv.COLOR_BGR2RGB)
         self.results = self.hands.process(imgRGB)
         if self.results.multi_hand_landmarks:
             for handLM in self.results.multi_hand_landmarks:
                 if draw:
-                    self.mpDraw.draw_landmarks(img,handLM,self.mpHands.HAND_CONNECTIONS)
+                    self.mpDraw.draw_landmarks(img, handLM, self.mpHands.HAND_CONNECTIONS)
 
         return img
 
-    def findPosition(self,img, handNo =0):
+    def findPosition(self, img, draw=True):
         lmList = []
+        bbox = []
         if self.results.multi_hand_landmarks:
-            myHand =self.results.multi_hand_landmarks[handNo]
-            for id, lm in enumerate(myHand.landmark):
-                h, w, c = img.shape
-                cx, cy = int(lm.x * w), int(lm.y * h)
-                lmList.append([id,cx,cy])
-        return lmList
+            x_min, y_min = float('inf'), float('inf')
+            x_max, y_max = -float('inf'), -float('inf')
+            for handLms in self.results.multi_hand_landmarks:
+                for lm in handLms.landmark:
+                    h, w, c = img.shape
+                    cx, cy = int(lm.x * w), int(lm.y * h)
+                    lmList.append([cx, cy])
+                    x_min, y_min = min(x_min, cx), min(y_min, cy)
+                    x_max, y_max = max(x_max, cx), max(y_max, cy)
+            bbox = [x_min, y_min, x_max, y_max]
+            if draw:
+                # Optionally draw bounding box
+                cv.rectangle(img, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
+        return [lmList, bbox]
 
-    def distance(self,point1,point2):
-        return (point1[1] - point2[1])*(point1[1] - point2[1]) + (point1[2] - point2[2])*(point1[2] - point2[2])
+    def distance(self, point1, point2):
+        return (point1[1] - point2[1])**2 + (point1[2] - point2[2])**2
 
-    def getFingers(self,img,handNo = 0):
-        fingers = [1,1,1,1,1]
-        lmList = self.findPosition(img,handNo= handNo)
+    def getFingers(self, img, handNo=0):
+        fingers = [1, 1, 1, 1, 1]
+        lmList = self.findPosition(img, handNo=handNo)[0]
         try:
-            if abs(lmList[3][1]-lmList[0][1]) < (lmList[2][1]-lmList[0][1]) or self.distance(lmList[0], lmList[2]) > self.distance(lmList[4], lmList[0]):
+            if abs(lmList[3][1] - lmList[0][1]) < (lmList[2][1] - lmList[0][1]) or self.distance(lmList[0], lmList[2]) > self.distance(lmList[4], lmList[0]):
                 fingers[0] = 0
             if self.distance(lmList[0], lmList[6]) > self.distance(lmList[8], lmList[0]):
                 fingers[1] = 0
