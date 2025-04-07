@@ -28,7 +28,7 @@ while True:
     success, img = cap.read()
     cv2.putText(img, f'{value}', (40, 70), cv2.FONT_HERSHEY_COMPLEX, 1, (255, 0, 0), 3)
     img = dec.findHands(img)
-    landmarks = dec.findPosition(img)
+    landmarks = dec.findPosition(img, draw=True)
     print("Landmarks:", landmarks)
 
     cv2.imshow("Live Image", img)

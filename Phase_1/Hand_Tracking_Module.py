@@ -3,7 +3,7 @@ import mediapipe as mp
 import time
 
 class handDetector():
-    def __init__(self, mode=False, maxHands=2, detectionCon=0.5, trackCon=0.5):
+    def _init_(self, mode=False, maxHands=2, detectionCon=0.5, trackCon=0.5):
         self.mode = mode
         self.maxHands = maxHands
         self.detectionCon = detectionCon
@@ -46,12 +46,16 @@ class handDetector():
         return [lmList, bbox]
 
     def distance(self, point1, point2):
-        return (point1[1] - point2[1])**2 + (point1[2] - point2[2])**2
+        return (point1[1] - point2[1])*2 + (point1[2] - point2[2])*2
 
     def getFingers(self, img, handNo=0):
         fingers = [1, 1, 1, 1, 1]
-        lmList = self.findPosition(img, handNo=handNo)[0]
+        lmList, _ = self.findPosition(img)  # Get landmark positions.
+        if not lmList:  # Check if no hand is detected.
+            return None  # Return None if no hand is detected.
+
         try:
+            # Logic for finger detection.
             if abs(lmList[3][1] - lmList[0][1]) < (lmList[2][1] - lmList[0][1]) or self.distance(lmList[0], lmList[2]) > self.distance(lmList[4], lmList[0]):
                 fingers[0] = 0
             if self.distance(lmList[0], lmList[6]) > self.distance(lmList[8], lmList[0]):
@@ -62,8 +66,10 @@ class handDetector():
                 fingers[3] = 0
             if self.distance(lmList[0], lmList[18]) > self.distance(lmList[0], lmList[20]):
                 fingers[4] = 0
-        except:
-            raise Exception("NO Hand Found")
+        except Exception as ex:
+            print(f"Error in finger detection: {ex}")
+            return None  # Return None on error.
+
         return fingers
 
 
@@ -71,25 +77,34 @@ def main():
     pTime = 0
     cap = cv.VideoCapture(1)
     detector = handDetector()
+    
     while True:
         success, img = cap.read()
+        if not success:
+            print("Failed to grab frame.")
+            break
+
         img = detector.findHands(img)
-        try:
-            fingers = detector.getFingers(img)
-            print(fingers)
-        except Exception as ex:
-            print(f'An Exception Occurred: {ex}')
+        fingers = detector.getFingers(img)
+
+        if fingers is None:  # Handle case where no hand is detected.
+            print("No hand detected.")
+            continue
+        
+        print(fingers)  # Print detected fingers.
+
+        # Calculate FPS.
         cTime = time.time()
         fps = 1 / (cTime - pTime)
         pTime = cTime
 
+        # Display FPS on the image.
         cv.putText(img, str(int(fps)), (10, 70), cv.FONT_HERSHEY_PLAIN, 3, (255, 0, 255), 3)
         cv.imshow('image', img)
-        k = cv.waitKey(1)
-        if k == 27:
-            cv.destroyAllWindows()
+
+        # Exit on pressing 'Esc'.
+        if cv.waitKey(1) & 0xFF == 27:
             break
 
-
-if __name__ == "__main__":
-    main()
+    cap.release()
+    cv.destroyAllWindows()
